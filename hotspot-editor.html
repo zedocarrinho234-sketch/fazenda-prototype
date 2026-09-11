@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Hotspot Editor — Fazenda Prototype</title>
+<style>
+  body{font-family:system-ui,Segoe UI,Roboto,Arial;margin:0;background:#0b1220;color:#e6eef6;display:flex;flex-direction:column;min-height:100vh}
+  header{padding:12px 16px;background:#071022;border-bottom:1px solid rgba(255,255,255,0.04)}
+  main{flex:1;display:flex;gap:12px;padding:12px}
+  .left{flex:1;min-width:320px}
+  .right{width:360px;background:#071022;padding:12px;border-left:1px solid rgba(255,255,255,0.03)}
+  #canvasWrap{position:relative;background:#081220;border-radius:8px;overflow:hidden;border:1px solid rgba(255,255,255,0.03)}
+  #bg{width:100%;display:block}
+  .rect{position:absolute;border:2px dashed #ffd166;background:linear-gradient(180deg,rgba(255,209,102,0.05),rgba(255,209,102,0.02));cursor:move}
+  .rect .handle{position:absolute;right:-8px;bottom:-8px;width:16px;height:16px;background:#ffd166;border-radius:3px;cursor:se-resize}
+  label{display:block;margin-top:8px;font-size:13px;color:#9fb0c8}
+  textarea{width:100%;height:160px;background:#041022;color:#cfe6ff;border:1px solid rgba(255,255,255,0.03);padding:8px;border-radius:6px}
+  button{background:#06b6d4;color:#032;padding:8px 10px;border-radius:8px;border:none;cursor:pointer;font-weight:700}
+  input[type=file]{color:#9fb0c8}
+  .row{display:flex;gap:8px;align-items:center}
+  .small{font-size:13px;color:#9fb0c8}
+</style>
+</head>
+<body>
+<header>
+  <strong>Hotspot Editor</strong> — carregue sua imagem e arraste/resize os retângulos. Clique "Exportar JSON" para copiar as porcentagens.
+</header>
+<main>
+  <div class="left">
+    <div style="margin-bottom:8px" class="row">
+      <input type="file" id="file" accept="image/*">
+      <button id="addRect">+ Add rect</button>
+      <button id="export">Exportar JSON</button>
+    </div>
+    <div id="canvasWrap" style="height:600px">
+      <img id="bg" src="" alt="background">
+    </div>
+  </div>
+  <aside class="right">
+    <div class="small">Retângulos atuais (clique para selecionar)</div>
+    <div id="list" style="margin-top:8px"></div>
+
+    <label>JSON gerado</label>
+    <textarea id="output" readonly placeholder="JSON aparecerá aqui"></textarea>
+
+    <label>Instruções</label>
+    <div class="small">Copie o JSON gerado e insira as porcentagens (left/top/width/height) no arquivo <code>index.html</code> nos botões .hotspot correspondentes.</div>
+  </aside>
+</main>
+
+<script>
+const fileEl = document.getElementById('file');
+const bg = document.getElementById('bg');
+const canvasWrap = document.getElementById('canvasWrap');
+const addRectBtn = document.getElementById('addRect');
+const listEl = document.getElementById('list');
+const output = document.getElementById('output');
+const exportBtn = document.getElementById('export');
+
+let rects = [];
+let selected = null;
+
+fileEl.addEventListener('change', ()=>{
+  const f = fileEl.files[0];
+  if(!f) return;
+  const url = URL.createObjectURL(f);
+  bg.src = url;
+  bg.onload = ()=>{
+    // fit image inside wrapper
+    canvasWrap.style.height = Math.min(window.innerHeight - 160, bg.naturalHeight * (canvasWrap.clientWidth / bg.naturalWidth)) + 'px';
+    renderRects();
+  };
+});
+
+function addRect(){
+  const r = { left:10, top:10, width:20, height:15, id: 'rect-' + Date.now() };
+  rects.push(r);
+  selected = r.id;
+  renderRects();
+  renderList();
+}
+
+addRectBtn.addEventListener('click', addRect);
+
+function renderRects(){
+  // remove existing
+  document.querySelectorAll('.rect').forEach(e=>e.remove());
+  rects.forEach(r=>{
+    const el = document.createElement('div');
+    el.className = 'rect';
+    el.dataset.id = r.id;
+    positionRect(el, r);
+    const handle = document.createElement('div'); handle.className='handle'; el.appendChild(handle);
+    canvasWrap.appendChild(el);
+
+    el.addEventListener('mousedown', startDrag);
+    handle.addEventListener('mousedown', startResize);
+
+    el.addEventListener('click', (ev)=>{ ev.stopPropagation(); selected = r.id; renderList(); });
+  });
+}
+
+function positionRect(el, r){
+  // set absolute position based on percentages
+  el.style.left = r.left + '%';
+  el.style.top = r.top + '%';
+  el.style.width = r.width + '%';
+  el.style.height = r.height + '%';
+}
+
+function startDrag(e){
+  if(e.button !== 0) return;
+  const el = e.currentTarget;
+  const id = el.dataset.id;
+  const rect = rects.find(x=>x.id===id);
+  const startX = e.clientX; const startY = e.clientY;
+  const bounds = canvasWrap.getBoundingClientRect();
+  const orig = { left: rect.left, top: rect.top };
+  function onMove(ev){
+    const dx = ((ev.clientX - startX)/bounds.width)*100;
+    const dy = ((ev.clientY - startY)/bounds.height)*100;
+    rect.left = Math.max(0, Math.min(100-orig.width, orig.left + dx));
+    rect.top = Math.max(0, Math.min(100-orig.height, orig.top + dy));
+    renderRects(); renderList();
+  }
+  function onUp(){ window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); }
+  window.addEventListener('mousemove', onMove); window.addEventListener('mouseup', onUp);
+}
+
+function startResize(e){
+  e.stopPropagation();
+  const handle = e.currentTarget; const el = handle.parentElement; const id = el.dataset.id;
+  const rect = rects.find(x=>x.id===id);
+  const startX = e.clientX; const startY = e.clientY; const bounds = canvasWrap.getBoundingClientRect();
+  const orig = { width: rect.width, height: rect.height };
+  function onMove(ev){
+    const dx = ((ev.clientX - startX)/bounds.width)*100;
+    const dy = ((ev.clientY - startY)/bounds.height)*100;
+    rect.width = Math.max(2, Math.min(100-rect.left, orig.width + dx));
+    rect.height = Math.max(2, Math.min(100-rect.top, orig.height + dy));
+    renderRects(); renderList();
+  }
+  function onUp(){ window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); }
+  window.addEventListener('mousemove', onMove); window.addEventListener('mouseup', onUp);
+}
+
+canvasWrap.addEventListener('click', ()=>{ selected = null; renderList(); });
+
+function renderList(){
+  listEl.innerHTML = '';
+  rects.forEach(r=>{
+    const d = document.createElement('div'); d.className='small';
+    d.style.padding='6px'; d.style.borderRadius='6px'; d.style.marginTop='6px';
+    d.style.background = r.id===selected ? 'rgba(255,209,102,0.06)' : 'transparent';
+    d.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><div style="flex:1">${r.id}</div><div style="display:flex;gap:6px"><button data-id="${r.id}" class="del">Del</button></div></div>
+    <div style="margin-top:6px">left: ${r.left.toFixed(2)}% top: ${r.top.toFixed(2)}% w: ${r.width.toFixed(2)}% h: ${r.height.toFixed(2)}%</div>`;
+    listEl.appendChild(d);
+
+    d.querySelector('.del').addEventListener('click', ()=>{ rects = rects.filter(x=>x.id!==r.id); renderRects(); renderList(); });
+  });
+}
+
+exportBtn.addEventListener('click', ()=>{
+  // produce JSON array with left/top/width/height values
+  const out = rects.map(r=>({ left: Number(r.left.toFixed(2)), top: Number(r.top.toFixed(2)), width: Number(r.width.toFixed(2)), height: Number(r.height.toFixed(2)), id: r.id }));
+  output.value = JSON.stringify(out, null, 2);
+  output.select();
+  document.execCommand('copy');
+  alert('JSON copiado para a área de transferência');
+});
+
+// load example if user doesn't upload image: use placeholder background
+bg.src = '';
+renderRects();
+</script>
+</body>
+</html>
