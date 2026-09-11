@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Fazenda - Protótipo Final</title>
+<style>
+  :root{--bg:#0d1f10;--accent:#27ae60;--wood:#6e4125}
+  html,body{height:100%;margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial}
+  body{display:flex;align-items:center;justify-content:center;background:var(--bg);padding:12px}
+  .stage{position:relative;width:100%;max-width:760px;height:760px;background:#222;border-radius:10px;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,.6)}
+  /* background image (replace farm.jpg with your image) */
+  .stage img#bg{width:100%;height:100%;object-fit:cover;display:block;filter:contrast(1.02) saturate(1.02);} 
+  /* HUD */
+  .hud{position:absolute;left:12px;top:12px;display:flex;gap:8px;align-items:center;color:#fff;z-index:40}
+  .hud .box{background:rgba(0,0,0,0.5);padding:6px 10px;border-radius:8px;border:2px solid rgba(255,255,255,0.06)}
+  .hud .score{display:flex;gap:8px;align-items:center}
+  .hud .btn-diam{cursor:pointer;padding:6px 8px;border-radius:8px;background:linear-gradient(#00c6d6,#00aebd);color:#042b2d;font-weight:700}
+  .hotspot{position:absolute;background:transparent;border:none;cursor:pointer;z-index:30}
+  .hotspot:focus{outline:2px solid rgba(255,255,255,0.2)}
+  .label{position:absolute;padding:4px 8px;background:rgba(18,18,18,0.7);color:#fff;border-radius:6px;font-size:12px;z-index:35;pointer-events:none}
+  .modal{display:none;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:80}
+  .modal .box{width:92vw;max-width:420px;background:#3e2213;border:4px solid #d4a373;border-radius:12px;color:#fff;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.7)}
+  .modal .title{display:flex;justify-content:space-between;padding:10px 12px;background:#251208;border-bottom:2px solid #d4a373}
+  .modal .body{padding:12px;display:flex;flex-direction:column;gap:8px}
+  .row-item{background:#4e2d1a;border:2px solid #6b3e24;padding:8px;border-radius:8px;display:flex;justify-content:space-between;align-items:center}
+  .btn{background:var(--accent);color:#fff;padding:8px 10px;border-radius:8px;border:none;cursor:pointer;font-weight:700}
+  .bottom{position:absolute;left:50%;transform:translateX(-50%);bottom:10px;display:flex;gap:8px;z-index:45}
+  .ico{background:rgba(0,0,0,0.4);padding:8px 10px;border-radius:8px;color:#fff;font-size:13px}
+  .small{font-size:12px;color:#e9e9e9}
+</style>
+</head>
+<body>
+
+<div class="stage" id="stage">
+  <!-- Substitua farm.jpg pela sua imagem em alta resolução (ou ajuste o src para um URL) -->
+  <img id="bg" src="farm.jpg" alt="Fazenda">
+
+  <!-- HUD -->
+  <div class="hud">
+    <div class="box">
+      <div class="small">Nível <span id="ui-lvl">1</span></div>
+      <div class="small">XP <span id="ui-xp">0</span></div>
+    </div>
+    <div class="box score">
+      <div>💰 <b id="ui-gold">5.000</b></div>
+      <div style="width:8px"></div>
+      <div>💎 <b id="ui-diam">10</b></div>
+    </div>
+    <div style="width:10px"></div>
+    <div class="btn-diam" id="open-diam">Loja 💎</div>
+  </div>
+
+  <!-- Labels apenas visuais -->
+  <div class="label" style="left:6%;top:70%;">Mercado</div>
+  <div class="label" style="left:70%;top:62%;">Haras</div>
+
+  <!-- Hotspots: posicione por porcentagem (ajuste se necessário) -->
+  <button class="hotspot" id="hot-mercado" title="Mercado" style="left:4%; top:68%; width:18%; height:22%;"></button>
+  <button class="hotspot" id="hot-haras" title="Haras" style="left:64%; top:56%; width:28%; height:30%;"></button>
+  <button class="hotspot" id="hot-fabs" title="Fábricas" style="left:54%; top:6%; width:36%; height:18%;"></button>
+
+  <!-- 6 canteiros (posições aproximadas; ajuste conforme o fundo) -->
+  <button class="hotspot" id="plot-0" style="left:46%; top:32%; width:10%; height:10%"></button>
+  <button class="hotspot" id="plot-1" style="left:58%; top:32%; width:10%; height:10%"></button>
+  <button class="hotspot" id="plot-2" style="left:70%; top:32%; width:10%; height:10%"></button>
+  <button class="hotspot" id="plot-3" style="left:46%; top:44%; width:10%; height:10%"></button>
+  <button class="hotspot" id="plot-4" style="left:58%; top:44%; width:10%; height:10%"></button>
+  <button class="hotspot" id="plot-5" style="left:70%; top:44%; width:10%; height:10%"></button>
+
+  <!-- Bottom bar -->
+  <div class="bottom">
+    <div class="ico">Loja</div>
+    <div class="ico">Inventário</div>
+    <div class="ico">Plantar</div>
+    <div class="ico">Administração</div>
+    <div class="ico">Mercado</div>
+  </div>
+
+  <!-- Modais -->
+  <div class="modal" id="modal-plantar">
+    <div class="box">
+      <div class="title"><div>🌱 Plantar</div><button class="btn" onclick="closeModal('modal-plantar')">Fechar</button></div>
+      <div class="body" id="seeds-body"></div>
+    </div>
+  </div>
+
+  <div class="modal" id="modal-mercado">
+    <div class="box">
+      <div class="title"><div>🛒 Mercado</div><button class="btn" onclick="closeModal('modal-mercado')">Fechar</button></div>
+      <div class="body" id="market-body"></div>
+    </div>
+  </div>
+
+  <div class="modal" id="modal-haras">
+    <div class="box">
+      <div class="title"><div>🏇 Haras</div><button class="btn" onclick="closeModal('modal-haras')">Fechar</button></div>
+      <div class="body" id="haras-body"></div>
+    </div>
+  </div>
+
+  <div class="modal" id="modal-diam">
+    <div class="box">
+      <div class="title"><div>💎 Loja de Diamantes</div><button class="btn" onclick="closeModal('modal-diam')">Fechar</button></div>
+      <div class="body" id="diam-body"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ========= CONFIG ========= */
+/* Sua chave PIX foi inserida conforme solicitado */
+const RECEIVER_ACCOUNT = 'd3015aa2-a7df-4632-8850-26d53dbe3d15';
+const STORAGE_KEY = 'fazenda_final_v1';
+
+/* ========= DATA ========= */
+/* Tempos em segundos para testes (substitua por minutos multiplicando por 60) */
+const CROPS = [
+  { id:1, name:'Milho', cost:1, sell:4, time: 10, icon:'🌽' },
+  { id:2, name:'Trigo', cost:2, sell:6, time: 15, icon:'🌾' },
+  { id:3, name:'Tomate', cost:3, sell:9, time: 20, icon:'🍅' },
+  { id:4, name:'Alface', cost:4, sell:12, time: 25, icon:'🥬' }
+];
+
+/* ========= STATE ========= */
+let state = {
+  gold: 5000,
+  diamonds: 10,
+  level: 1,
+  xp: 0,
+  inventory: {},
+  plots: [
+    { state:'empty', seed:null, endAt:null },
+    { state:'empty', seed:null, endAt:null },
+    { state:'empty', seed:null, endAt:null },
+    { state:'empty', seed:null, endAt:null },
+    { state:'empty', seed:null, endAt:null },
+    { state:'empty', seed:null, endAt:null }
+  ]
+};
+
+/* ========= AUDIO ========= */
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+function ensureAudio(){ if(audioCtx.state === 'suspended') audioCtx.resume().catch(()=>{}); }
+function playSound(type){
+  try{
+    ensureAudio();
+    const osc = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    osc.type = 'sine'; osc.connect(g); g.connect(audioCtx.destination);
+    if(type==='plant'){ osc.frequency.value=320; g.gain.value=0.2; osc.start(); osc.stop(audioCtx.currentTime+0.12); }
+    if(type==='harv'){ osc.frequency.value=700; g.gain.value=0.25; osc.start(); osc.stop(audioCtx.currentTime+0.2); }
+    if(type==='coin'){ osc.frequency.value=1100; g.gain.value=0.2; osc.start(); osc.stop(audioCtx.currentTime+0.14); }
+  }catch(e){}
+}
+
+/* ========= PERSISTENCE ========= */
+function saveState(){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){console.warn(e);} }
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw){ const parsed = JSON.parse(raw); state = Object.assign(state, parsed); }
+    state.plots = (state.plots || []).map(p => {
+      if(!p) return {state:'empty', seed:null, endAt:null};
+      return { state:p.state||'empty', seed:p.seed||null, endAt:p.endAt||null };
+    });
+  }catch(e){}
+}
+
+/* ========= UI ========= */
+function updateHUD(){
+  document.getElementById('ui-gold').innerText = state.gold.toLocaleString('pt-BR');
+  document.getElementById('ui-diam').innerText = state.diamonds.toLocaleString('pt-BR');
+  document.getElementById('ui-lvl').innerText = state.level;
+  document.getElementById('ui-xp').innerText = state.xp;
+}
+
+/* ========= MODALS ========= */
+function openModal(id){ document.getElementById(id).style.display = 'block'; if(id==='modal-plantar') renderSeeds(); if(id==='modal-mercado') renderMarket(); if(id==='modal-diam') renderDiam(); }
+function closeModal(id){ document.getElementById(id).style.display = 'none'; saveState(); }
+
+/* ========= PLOTS / PLANTING ========= */
+let activePlotIndex = null;
+function renderSeeds(){
+  const container = document.getElementById('seeds-body'); container.innerHTML='';
+  CROPS.forEach(c => {
+    const div = document.createElement('div'); div.className='row-item';
+    div.innerHTML = `<div><b>${c.icon} ${c.name}</b><small style="display:block;color:#f1c40f">Custo: ${c.cost} • Tempo: ${c.time}s</small></div>`;
+    const btn = document.createElement('button'); btn.className='btn'; btn.textContent='Plantar';
+    btn.onclick = () => {
+      const idx = activePlotIndex !== null ? activePlotIndex : state.plots.findIndex(p=>p.state==='empty');
+      plantSeed(idx, c.id);
+      closeModal('modal-plantar');
+      activePlotIndex = null;
+    };
+    div.appendChild(btn); container.appendChild(div);
+  });
+}
+
+function plantSeed(index, seedId){
+  if(index === null || index<0 || index>=state.plots.length){ alert('Selecione um canteiro'); return; }
+  const plot = state.plots[index];
+  if(plot.state !== 'empty'){ alert('Canteiro não vazio'); return; }
+  const crop = CROPS.find(x=>x.id===seedId); if(!crop) return;
+  if(state.gold < crop.cost){ alert('Ouro insuficiente'); return; }
+  state.gold -= crop.cost;
+  plot.state = 'growing';
+  plot.seed = seedId;
+  plot.endAt = Date.now() + crop.time*1000;
+  playSound('plant'); saveState(); updateHUD();
+}
+
+/* Harvest */
+function harvest(index){
+  const p = state.plots[index]; if(!p) return;
+  if(p.state === 'growing' && p.endAt && Date.now() < p.endAt){ alert('Ainda crescendo'); return; }
+  if(p.state !== 'ready' && p.state !== 'growing'){ alert('Nada para colher'); return; }
+  const crop = CROPS.find(x=>x.id===p.seed); if(!crop) return;
+  const gain = crop.sell;
+  state.gold += gain;
+  state.inventory[crop.name] = (state.inventory[crop.name]||0) + 1;
+  p.state = 'empty'; p.seed = null; p.endAt = null;
+  playSound('harv'); playSound('coin'); saveState(); updateHUD();
+}
+
+/* ========= MARKET / HARAS / DIAMONDS ========= */
+function renderMarket(){
+  const c = document.getElementById('market-body'); c.innerHTML='';
+  const keys = Object.keys(state.inventory);
+  if(keys.length===0){ c.innerHTML = '<div class="small">Sem produtos para venda.</div>'; return; }
+  keys.forEach(k=>{
+    const qty = state.inventory[k]; if(!qty) return;
+    const crop = CROPS.find(x=>x.name===k);
+    const price = crop ? crop.sell : 1;
+    const row = document.createElement('div'); row.className='row-item';
+    row.innerHTML = `<div><b>${k}</b><small style="display:block;color:#f1c40f">Quantidade: ${qty} • Preço: ${price} 💰</small></div>`;
+    const btn = document.createElement('button'); btn.className='btn'; btn.textContent='Vender 1';
+    btn.onclick = ()=>{
+      if((state.inventory[k]||0) <= 0) return;
+      state.inventory[k] -= 1; state.gold += price; playSound('coin'); saveState(); renderMarket(); updateHUD();
+    };
+    row.appendChild(btn); c.appendChild(row);
+  });
+}
+
+function renderHaras(){
+  const c = document.getElementById('haras-body'); c.innerHTML='';
+  const animals = [
+    {name:'Galinha', feed:10, icon:'🐔'},
+    {name:'Vaca', feed:20, icon:'🐄'}
+  ];
+  animals.forEach(a=>{
+    const row = document.createElement('div'); row.className='row-item';
+    row.innerHTML = `<div><b>${a.icon} ${a.name}</b><small style="display:block;color:#f1c40f">Custo: ${a.feed} 💰</small></div>`;
+    const btn = document.createElement('button'); btn.className='btn'; btn.textContent='Comprar';
+    btn.onclick = ()=>{
+      if(state.gold < a.feed){ alert('Ouro insuficiente'); return; }
+      state.gold -= a.feed; state.inventory[a.name] = (state.inventory[a.name]||0) + 1; playSound('coin'); saveState(); renderHaras(); updateHUD();
+    };
+    row.appendChild(btn); c.appendChild(row);
+  });
+}
+
+function renderDiam(){
+  const c = document.getElementById('diam-body'); c.innerHTML='';
+  const row1 = document.createElement('div'); row1.className='row-item';
+  row1.innerHTML = `<div><b>10 Diamantes</b><small style="display:block;color:#f1c40f">Pacote Básico</small></div>`;
+  const b1 = document.createElement('button'); b1.className='btn'; b1.textContent='R$1,99 (Simular)'; b1.onclick=()=>{ state.diamonds += 10; playSound('coin'); saveState(); updateHUD(); renderDiam(); };
+  row1.appendChild(b1); c.appendChild(row1);
+
+  const row2 = document.createElement('div'); row2.className='row-item';
+  row2.innerHTML = `<div><b>Conta para Pagamento (PIX)</b><small style="display:block;color:#f1c40f">Copie e pague via seu app</small><div style="margin-top:6px;background:#062;display:inline-block;padding:6px 8px;border-radius:6px">${RECEIVER_ACCOUNT}</div></div>`;
+  const copies = document.createElement('div'); copies.style.display='flex'; copies.style.gap='8px';
+  const cp = document.createElement('button'); cp.className='btn'; cp.textContent='Copiar'; cp.onclick = copyReceiver;
+  copies.appendChild(cp);
+  row2.appendChild(copies); c.appendChild(row2);
+}
+
+function copyReceiver(){
+  if(!navigator.clipboard){ alert('Copiar não suportado: ' + RECEIVER_ACCOUNT); return; }
+  navigator.clipboard.writeText(RECEIVER_ACCOUNT).then(()=>{ alert('Conta copiada para área de transferência!'); }).catch(()=>{ alert('Falha ao copiar. Conta: ' + RECEIVER_ACCOUNT); });
+}
+
+/* ========= TIMERS ========= */
+function tick(){
+  const now = Date.now(); let changed=false;
+  state.plots.forEach((p, idx)=>{
+    if(p.state === 'growing' && p.endAt){
+      if(now >= p.endAt){
+        p.state = 'ready'; p.endAt = null; changed = true;
+      }
+    }
+  });
+  if(changed){ saveState(); renderPlots(); }
+}
+
+function renderPlots(){
+  state.plots.forEach((p, idx)=>{
+    const el = document.getElementById('plot-' + idx);
+    if(!el) return;
+    if(p.state === 'empty'){ el.title = 'Canteiro vazio — clique para plantar'; el.style.opacity = '0.0'; }
+    else if(p.state === 'growing'){ const remain = Math.max(0, Math.ceil((p.endAt - Date.now())/1000)); el.title = `Crescendo: ${remain}s`; el.style.opacity = '0.01'; }
+    else if(p.state === 'ready'){ el.title = 'Pronto para colher — clique para colher'; el.style.opacity = '0.02'; }
+  });
+}
+
+/* ========= EVENTS ========= */
+function initHotspots(){
+  for(let i=0;i<6;i++){
+    const el = document.getElementById('plot-'+i);
+    el.addEventListener('click', ()=> {
+      activePlotIndex = i;
+      const p = state.plots[i];
+      if(p.state === 'empty'){ openModal('modal-plantar'); }
+      else if(p.state === 'growing'){ const remain = Math.max(0, Math.ceil((p.endAt - Date.now())/1000)); alert('Ainda crescendo: ' + remain + 's'); }
+      else if(p.state === 'ready'){ harvest(i); }
+    });
+  }
+  document.getElementById('hot-mercado').addEventListener('cli
